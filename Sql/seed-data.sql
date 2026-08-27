@@ -6,7 +6,7 @@ SET XACT_ABORT ON;
 
 BEGIN TRANSACTION;
 
--- Datos de ccUsers tomados de CCenterRIA.xlsx
+-- Datos del excel: CCenterRIA.xlsx 
 INSERT INTO [ccUsers] ([User_id], [Login], [Nombres], [ApellidoPaterno], [ApellidoMaterno], [IDArea])
 VALUES
 (1, N'root', N'Application', N' administrator', NULL, 1),
@@ -10211,7 +10211,6 @@ VALUES
 COMMIT TRANSACTION;
 GO
 
--- Verificacion
 SELECT COUNT(*) AS TotalUsers FROM [ccUsers];
 SELECT COUNT(*) AS TotalLogins FROM [ccloglogin];
 GO

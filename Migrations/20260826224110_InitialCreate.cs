@@ -44,7 +44,7 @@ namespace TestDevBackMiddle.Migrations
                 });
 
             migrationBuilder.CreateTable(
--------                name: "ccUsers",
+                name: "ccUsers",
                 columns: table => new
                 {
                     User_id = table.Column<int>(type: "int", nullable: false),

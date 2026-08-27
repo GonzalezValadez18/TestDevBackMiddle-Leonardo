@@ -31,7 +31,6 @@ public class LoginsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Login>> CreateLogin(Login login)
     {
-        // Validar que el usuario exista en ccUsers
         var userExists = await _context.Users
             .AnyAsync(u => u.UserId == login.UserId);
 
@@ -60,17 +59,15 @@ public class LoginsController : ControllerBase
             );
         }
 
-        // Obtener el último movimiento del usuario
         var lastMovement = await _context.Logins
             .Where(l => l.UserId == login.UserId)
             .OrderByDescending(l => l.Fecha)
             .FirstOrDefaultAsync();
 
-        // La fecha nueva debe ser posterior al último movimiento
         if (lastMovement != null && login.Fecha <= lastMovement.Fecha)
         {
             return BadRequest(
-                "La fecha del movimiento debe ser posterior al último movimiento registrado."
+                "La fecha debe ser mayor a la fecha del último movimiento"
             );
         }
 
@@ -109,106 +106,105 @@ public class LoginsController : ControllerBase
     }
 
     // PUT /logins/{id}
-// PUT /logins/{id}
-[HttpPut("{id}")]
-public async Task<IActionResult> UpdateLogin(int id, Login login)
-{
-    var existingLogin = await _context.Logins.FindAsync(id);
-
-    if (existingLogin == null)
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateLogin(int id, Login login)
     {
-        return NotFound($"El registro con ID {id} no existe.");
+        var existingLogin = await _context.Logins.FindAsync(id);
+
+        if (existingLogin == null)
+        {
+            return NotFound($"El registro con el ID {id} no existe.");
+        }
+
+        var userExists = await _context.Users
+            .AnyAsync(u => u.UserId == login.UserId);
+
+        if (!userExists)
+        {
+            return BadRequest(
+                $"El usuario con el ID {login.UserId} no existe."
+            );
+        }
+
+        if (login.TipoMov != 0 && login.TipoMov != 1)
+        {
+            return BadRequest(
+                "TipoMov solo puede ser 1 para login o 0 para logout."
+            );
+        }
+
+        if (login.Fecha == default)
+        {
+            return BadRequest("Debe incluir la fecha");
+        }
+
+        var previousMovement = await _context.Logins
+            .Where(l =>
+                l.UserId == login.UserId &&
+                l.Id != id &&
+                l.Fecha < login.Fecha)
+            .OrderByDescending(l => l.Fecha)
+            .FirstOrDefaultAsync();
+
+        var nextMovement = await _context.Logins
+            .Where(l =>
+                l.UserId == login.UserId &&
+                l.Id != id &&
+                l.Fecha > login.Fecha)
+            .OrderBy(l => l.Fecha)
+            .FirstOrDefaultAsync();
+
+        if (previousMovement != null &&
+            previousMovement.TipoMov == login.TipoMov)
+        {
+            return BadRequest(
+                "El movimiento tiene una secuencia invalida con el registro anterior."
+            );
+        }
+
+        if (nextMovement != null &&
+            nextMovement.TipoMov == login.TipoMov)
+        {
+            return BadRequest(
+                "El movimiento tiene una secuencia invalida con el registro siguiente."
+            );
+        }
+
+        if (login.TipoMov == 0 && previousMovement == null)
+        {
+            return BadRequest(
+                "Necesita un logeo previo"
+            );
+        }
+
+        existingLogin.UserId = login.UserId;
+        existingLogin.Extension = login.Extension;
+        existingLogin.TipoMov = login.TipoMov;
+        existingLogin.Fecha = login.Fecha;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(existingLogin);
     }
-
-    var userExists = await _context.Users
-        .AnyAsync(u => u.UserId == login.UserId);
-
-    if (!userExists)
+    // DELETE /logins/{id}
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteLogin(int id)
     {
-        return BadRequest(
-            $"El usuario con ID {login.UserId} no existe."
+        var login = await _context.Logins.FindAsync(id);
+
+        if (login == null)
+        {
+            return NotFound(
+                $"El registro con ID {id} no existe."
+            );
+        }
+
+        _context.Logins.Remove(login);
+
+        await _context.SaveChangesAsync();
+
+        return Ok(
+            $"El registro con ID {id} fue eliminado correctamente."
         );
     }
-
-    if (login.TipoMov != 0 && login.TipoMov != 1)
-    {
-        return BadRequest(
-            "TipoMov solo puede ser 1 para login o 0 para logout."
-        );
-    }
-
-    if (login.Fecha == default)
-    {
-        return BadRequest("La fecha es obligatoria.");
-    }
-
-    var previousMovement = await _context.Logins
-        .Where(l =>
-            l.UserId == login.UserId &&
-            l.Id != id &&
-            l.Fecha < login.Fecha)
-        .OrderByDescending(l => l.Fecha)
-        .FirstOrDefaultAsync();
-
-    var nextMovement = await _context.Logins
-        .Where(l =>
-            l.UserId == login.UserId &&
-            l.Id != id &&
-            l.Fecha > login.Fecha)
-        .OrderBy(l => l.Fecha)
-        .FirstOrDefaultAsync();
-
-    if (previousMovement != null &&
-        previousMovement.TipoMov == login.TipoMov)
-    {
-        return BadRequest(
-            "El movimiento genera una secuencia inválida con el registro anterior."
-        );
-    }
-
-    if (nextMovement != null &&
-        nextMovement.TipoMov == login.TipoMov)
-    {
-        return BadRequest(
-            "El movimiento genera una secuencia inválida con el registro siguiente."
-        );
-    }
-
-    if (login.TipoMov == 0 && previousMovement == null)
-    {
-        return BadRequest(
-            "No se puede registrar un logout sin un login previo."
-        );
-    }
-
-    existingLogin.UserId = login.UserId;
-    existingLogin.Extension = login.Extension;
-    existingLogin.TipoMov = login.TipoMov;
-    existingLogin.Fecha = login.Fecha;
-
-    await _context.SaveChangesAsync();
-
-    return Ok(existingLogin);
-}
-// DELETE /logins/{id}
-[HttpDelete("{id}")]
-public async Task<IActionResult> DeleteLogin(int id)
-{
-    var login = await _context.Logins.FindAsync(id);
-
-    if (login == null)
-    {
-        return NotFound(
-            $"El registro con ID {id} no existe."
-        );
-    }
-
-    _context.Logins.Remove(login);
-
-    await _context.SaveChangesAsync();
-
-    return Ok(
-        $"El registro con ID {id} fue eliminado correctamente."
-    );
-}
 }
